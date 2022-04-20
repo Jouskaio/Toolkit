@@ -12,19 +12,24 @@ ROOT_PROJECT=$PWD
 source colors.sh
 
 clear
-read -p "Do you want to install the last version of Bash ? Y/n " COMMAND_BASH
-if [ "$COMMAND_BASH" = "Y" ]; then
+read -p $'\033[1;33m Do you want to install the last version of Bash ? Y/n \033[0m: ' COMMAND_BASH
+if [[ "$COMMAND_BASH" == "Y" || "$COMMAND_BASH" == "y" ]]; then
+  printf "${White}"
   sudo apt update
   sudo apt-get install --only-upgrade bash
+  printf "${Color_Off}"
   else
-    echo -e "${Green}Quit bash update...${Color_Off}"
+    echo -e "${Yellow}Quit bash update...${Color_Off}"
 fi
 
-read -p "${LIGHT_GREEN}Do you want to install jq ? Y/n ${NO_COLOR}" COMMAND_JQ
-if [ "$COMMAND_JQ" = "Y" ]; then
+read -p $'\033[1;33mDo you want to install jq ? Y/n \033[0m: ' COMMAND_JQ
+if [[ "$COMMAND_JQ" = "Y" || "$COMMAND_JQ" = "y" ]]; then
+  printf  "${White}"
+  sudo apt update
   sudo apt install jq
+  printf "${Color_Off}"
   else
-    echo -e "${Green}Quit jq installation...${Color_Off}"
+    echo -e "${Yellow}Quit jq installation...${Color_Off}"
 fi
 
 
@@ -73,7 +78,7 @@ else
     CLIENT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].client' "$FILE")
     sudo ssh -i "$NAME" "$CLIENT"@"$PORT"
     else
-      echo "$NAME do not exists"
+      echo "${Red}>>> $NAME does not exist${Color_Off}"
   fi
   cd "$ROOT_PROJECT" || exit
 fi
