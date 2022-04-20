@@ -6,8 +6,12 @@
 # - No space in JSON elements, whitespace aren't ignored in the condition in whiptail command
 
 # ------------- INSTALL PACKAGE NEEDED -------------
+FILE="$PWD"/keys.json
+ROOT_PROJECT=$PWD
+
 source colors.sh
 
+clear
 read -p "Do you want to install the last version of Bash ? Y/n " COMMAND_BASH
 if [ "$COMMAND_BASH" = "Y" ]; then
   sudo apt update
@@ -41,10 +45,10 @@ COUNTER=0
 while IFS= read -r line; do
   DESCRIPTION+=("$COUNTER $line")
   COUNTER=$((COUNTER+1))
-done < <(jq -cr '.[].name ' < "$PWD/keys.json")
+done < <(jq -cr '.[].name ' < "keys.json")
 
 # ------------- INITIALIZATION DIALOG -------------
-ARRAY_NAME=$(jq  '.[].name' $PWD/keys.json| jq --slurp '.[]')
+ARRAY_NAME=$(jq  '.[].name' $PWD/keys.json | jq --slurp '.[]')
 # shellcheck disable=SC2068
 CHOICES=$(whiptail --title "$TITLE" \
           --backtitle "Menu" --menu \
@@ -57,13 +61,20 @@ CHOICES=$(whiptail --title "$TITLE" \
 # Create a file descriptor 3 that points to 1 (stdout)
 # Redirect 1 (stdout) to 2 (stderr)
 # Redirect 2 (stderr) to the 3 file descriptor, which is pointed to stdout
-
 # ------------- CASES -------------
-#for i in ``
-#if [ -z "$CHOICES" ]
-#then
-#  echo "No option was selected"
-#else
-#fi
-#
+if [ -z "$CHOICES" ]
+then
+  echo "No option was selected"
+else
+  NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].key' "$FILE")
+  cd "$HOME"/.ssh || exit
+  if test -f "$NAME"; then
+    PORT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].port' "$FILE")
+    CLIENT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].client' "$FILE")
+    sudo ssh -i "$NAME" "$CLIENT"@"$PORT"
+    else
+      echo "$NAME do not exists"
+  fi
+  cd "$ROOT_PROJECT" || exit
+fi
 
