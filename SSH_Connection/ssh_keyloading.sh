@@ -38,7 +38,7 @@ HEIGHT=0
 WIDTH=0
 CHOICE_HEIGHT=4
 # Add 2 two considerate the insert and delete option
-COUNT_OPTION=$(($(jq '. | length' "$PWD"/keys.json) + 2))
+COUNT_OPTION=$(jq '. | length' "$PWD"/keys.json)
 #backtitle="SSH Connexion"
 TITLE="SSH connexion"
 MENU="Select the ssh connexion you want to use. If you want to add a new connexion, remember to add the ssh key in ssh folder (~/.ssh for Linux)"
@@ -74,7 +74,7 @@ CHOICES=$(whiptail --title "$TITLE" \
 # ------------- CASES -------------
 if [ -z "$CHOICES" ]
 then
-  echo "${Red}>>> No option was selected ${Color_Off}"
+  echo -e "${Red}>>> No option was selected ${Color_Off}"
 elif [ "$CHOICES" = "0" ]
 then
   # shellcheck disable=SC2068
@@ -97,27 +97,62 @@ then
   # If all the dialog ae completed, test the connexion SSH and add it to
   if [[ ( -n $JSON_NAME ) && ( -n $JSON_KEY ) && ( -n $JSON_CLIENT ) && ( -n $JSON_PORT )]]
   then
-    sudo cp "$JSON_KEY" "$HOME/.ssh/"
-    NAME_KEY=$(basename "$JSON_KEY")
-    # Exemple : jq -n --arg appname "$appname" '{apps: [ {name: $appname, script: "./cms/bin/www", watch: false}]}' > process.json
+    # If the file exists, then copy the file in .ssh folder
+    if [ -f "$JSON_KEY" ]
+    then
+      sudo cp "$JSON_KEY" "$HOME/.ssh/"
+      # Get the name of the file
+      NAME_KEY=$(basename "$JSON_KEY")
+      # Add these new information to the file
+      RESULT=$(jq -s --arg name "$JSON_NAME" \
+              --arg key "$NAME_KEY" \
+              --arg port "$JSON_PORT" \
+              --arg client "$JSON_CLIENT" \
+              '.[] |= . + [{ "name" : $name, "key" : $key, "port" : $port, "client": $client }]' "$FILE")
+      # Test if the connection works
+      # Source : https://myblog.robert.sebille.name/?Tester-si-une-connexion-ssh-est
+      echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
+      sudo ssh -q -i "$NAME" "$CLIENT"@"$PORT" echo > /dev/null
+      if [ "$?" == "255" ]
+      then
+        echo -e "${Red}>>> Connexion impossible to $NAME. The inscription is canceled ${Color_Off}"
+      elif [ "$?" == "0" ]
+      then
+        echo -e "${Red}>>> Connexion impossible or failed to $NAME. The inscription is canceled ${Color_Off}"
+      else
+        sudo ssh -i "$NAME" "$CLIENT"@"$PORT"
+      fi
+      # This RESULT command create an array in excess, we need to delete it before insert it in the file
+      echo "$RESULT" | jq '.[0]' > "$FILE"
+    else
+      echo  -e "${Red}>>> The file doesn't exist, the insert is canceled${Color_Off}"
+    fi
   else
-    echo "${Red}>>> One dialog wasn't completed, the operation is canceled${Color_Off}"
+    echo  -e "${Red}>>> Atleast one dialog wasn't completed, the operation is canceled${Color_Off}"
   fi
-  # Si JSON_KEY, JSON_NAME, JSON_PORT, JSON_CLIENT n'ont pas été annulé alors faire :
-  # - copier la clé dans /.ssh
-  # - récupérer le lien et conserver que le nom pour l'ajouter au key du nouvel élement JSON après le test de connexion (do `basename $JSON_KEY`)
-  # - Tester la connexion. Si correct : Ajouter les autres éléments au JSON, sinon demander à refaire
 else
   # Increment to remove the first and second options of the variable and read the JSON file correctly
   CHOICES=$((CHOICES-2))
   NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].key' "$FILE")
   cd "$HOME"/.ssh || exit
   if test -f "$NAME"; then
+    CHOICE_NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].name' "$FILE")
     PORT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].port' "$FILE")
     CLIENT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].client' "$FILE")
-    sudo ssh -i "$NAME" "$CLIENT"@"$PORT"
+    # Test connexion then connect
+    echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
+    sudo ssh -q -i "$NAME" "$CLIENT"@"$PORT" echo > /dev/null
+    if [ "$?" == "255" ]
+    then
+      echo -e "${Red}>>> Connexion impossible to $CHOICE_NAME. The inscription is canceled ${Color_Off}"
+    elif [ "$?" == "0" ]
+    then
+      echo -e "${Red}>>> Connexion impossible or failed to $CHOICE_NAME. The inscription is canceled ${Color_Off}"
     else
-      echo "${Red}>>> $NAME does not exist${Color_Off}"
+      sudo ssh -i "$NAME" "$CLIENT"@"$PORT"
+    fi
+    else
+      echo -e "${Red}>>> $NAME does not exist${Color_Off}"
   fi
   cd "$ROOT_PROJECT" || exit
 fi

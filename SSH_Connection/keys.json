@@ -1,8 +1,8 @@
 [
-	{
-		"name" : "Thingsboard",
-		"key" : "Thingsboard_recover.pem",
-		"port" : "13.38.118.46",
-		"client": "ubuntu"
-	}
+  {
+    "name": "Thingsboard",
+    "key": "Thingsboard_recover.pem",
+    "port": "13.38.118.46",
+    "client": "ubuntu"
+  }
 ]
