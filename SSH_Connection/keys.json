@@ -4,5 +4,11 @@
     "key": "Thingsboard_recover.pem",
     "port": "13.38.118.46",
     "client": "ubuntu"
+  },
+  {
+    "name": "PROD_Thingsboard",
+    "key": "Thingsboard_recover.pem",
+    "port": "52.47.138.176",
+    "client": "ubuntu"
   }
 ]
