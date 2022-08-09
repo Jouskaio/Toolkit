@@ -25,5 +25,5 @@
 |---------|---------|-----------------|-----------------------------------------------------------------------------------------------|
 | process | top     | `top`           | Display dynamically the top all the running and active real-time processes in an ordered list |
 | process | ps      | `ps -aux`       | Display process currently running (not dynamic)                                               |
-| process | lsof    | `lsof |  less`                                                                                        | Display all scripts/task/process running                                                      |                                                                                      |                                                                                               |
+| process | lsof    | `lsof`          | Display all scripts/task/process running. Don't hesitate to to add with pipeline `less`       |                                                                                      |                                                                                               |
 |         |         |                 |                                                                                               |
