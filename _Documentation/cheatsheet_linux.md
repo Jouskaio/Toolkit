@@ -17,3 +17,13 @@
 | filter      | grep    | `grep -l "sl.h" *.c`                              | Search .c files with sl.h reference in it                         |
 | filter      | grep    | `grep -c err /var/log/messages*`                  | Count occurrences of error pattern in this folder                 |
 | filter      | grep    |                                                   |                                                                   |
+
+
+## Performance
+
+| Topic   | Command | Command details | Description                                                                                   |
+|---------|---------|-----------------|-----------------------------------------------------------------------------------------------|
+| process | top     | `top`           | Display dynamically the top all the running and active real-time processes in an ordered list |
+| process | ps      | `ps -aux`       | Display process currently running (not dynamic)                                               |
+| process | lsof    | `lsof I less`   | Display all scripts/task/process running                                                      |                                                                                      |                                                                                               |
+|         |         |                 |                                                                                               |
