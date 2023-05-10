@@ -3,7 +3,7 @@ All scripts and random tools who can be use to help the user
 
 ## Shell
 
-* [Quick connexion to ssh servers](./SSH_Connection)
+* [Quick connexion to SSH servers](./SSH_Connection) : Execute the file with `bash ssh_keyloading.sh` and n
 
 ## Documentation
 

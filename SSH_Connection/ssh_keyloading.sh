@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ATTENTION :
-# - Execute the file under `bash ssh_keyloading.sh` and not `sh ./ssh_keyloading.sh`
+# - Execute the file with `bash ssh_keyloading.sh` and not `sh ./ssh_keyloading.sh`
 #   for compatibility reason
 # - No space in JSON elements, whitespace aren't ignored in the condition in whiptail command
 
@@ -132,7 +132,7 @@ then
   fi
 else
   # Increment to remove the first and second options of the variable and read the JSON file correctly
-  CHOICES=$((CHOICES-2))
+  CHOICES=$((CHOICES-1))
   NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].key' "$FILE")
   cd "$HOME"/.ssh || exit
   if test -f "$NAME"; then
