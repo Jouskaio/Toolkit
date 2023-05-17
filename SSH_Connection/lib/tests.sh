@@ -3,7 +3,7 @@
 test_connection () {
    if [ "$?" == "255" ]
     then
-      echo -e "${Red}>>> Connexion not possible to $NAME (remote down or unavailable). The execution is canceled ${Color_Off}"
+      echo -e "${Red}>>> Connexion not possible to $NAME (wrong authentification). The execution is canceled ${Color_Off}"
       return 1
     elif [ "$?" == "0" ]
     then

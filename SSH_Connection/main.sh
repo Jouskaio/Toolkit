@@ -76,7 +76,7 @@ CHOICES=$(whiptail --title "$TITLE" \
 
 # Choice : No selection
 # Subtract 2 to adjust for the additional insert and delete options
-CHOICES=$((CHOICES-1))
+#CHOICES=$((CHOICES-1))
 # Choice : Insertion of a new connection with key authentication
 if [ "$CHOICES" -eq 0 ]; then
   # shellcheck disable=SC2068
@@ -178,7 +178,7 @@ elif [ "$CHOICES" -eq 1 ]; then
 ##############################################################################
 else
   # Increment to remove the first and second options of the variable and read the JSON file correctly
-  CHOICES=$((CHOICES-1))
+  CHOICES=$((CHOICES-2))
 
   NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].name' "$FILE")
   HOSTNAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].hostname' "$FILE")
