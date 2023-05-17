@@ -9,8 +9,8 @@
 FILE="$PWD"/keys.json
 ROOT_PROJECT=$PWD
 
-source colors.sh
-source functions.sh
+source "$PWD/lib/colors.sh"
+source "$PWD/lib/functions.sh"
 
 clear
 read -p $'\033[1;33m Do you want to install the last version of Bash ? Y/n \033[0m: ' COMMAND_BASH
