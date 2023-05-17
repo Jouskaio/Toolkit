@@ -25,13 +25,27 @@ If you need to modify some information, please edit the keys.json file.
 
 ### Version 1.0 : Add manually
 
-For now, we have to add manually in the ssh folder the new key then add a new element in the array JSON like this :
+For now, we have to add manually in the ssh folder the new key then add a new element in the array JSON like this.
+
+**For private/public key authentification **
 ``` json
     {
             "name" : "Name without space (one word)",
             "key" : "Name of the file in ssh folder (with extension)",
-            "port" : "Port",
-            "client": "Name of the client"
+            "hostname" : "hostname",
+            "client": "Name of the client",
+            "port": null
+    }
+```
+
+**For password authentification **
+``` json
+    {
+            "name" : "Name without space (one word)",
+            "key" : null,
+            "hostname" : "Port",
+            "client": "Name of the client",
+            "port": "Integer port (ex: 32)"
     }
 ```
 

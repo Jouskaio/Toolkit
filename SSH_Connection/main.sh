@@ -10,7 +10,7 @@ FILE="$PWD"/keys.json
 ROOT_PROJECT=$PWD
 
 source "$PWD/lib/colors.sh"
-source "$PWD/lib/functions.sh"
+source "$PWD/lib/tests.sh"
 
 clear
 read -p $'\033[1;33m Do you want to install the last version of Bash ? Y/n \033[0m: ' COMMAND_BASH
@@ -46,7 +46,7 @@ MENU="Select the ssh connexion you want to use. If you want to add a new connexi
 
 # ------------- ADDING OPTIONS DIALOG -------------
 DESCRIPTION=""
-COUNTER=1
+COUNTER=2
 # To resolve whitespace who dictates to foreach that any word is a new element, we use this command
 # Source : https://unix.stackexchange.com/questions/459419/why-are-spaces-echoing-as-newlines
 # Update : This method doesn't work on whiptail because the description part use whitespace to
@@ -55,8 +55,8 @@ while IFS= read -r line; do
   DESCRIPTION+=("$COUNTER $line")
   COUNTER=$((COUNTER+1))
 done < <(jq -cr '.[].name ' < "keys.json")
-# Add the insert and delete option
-DESCRIPTION='0 Insert_new_connection' $DESCRIPTION
+# Add the insert and delete options
+DESCRIPTION="0 INSERT_key_connection 1 INSERT_password_connection${DESCRIPTION}"
 
 # ------------- INITIALIZATION DIALOG -------------
 ARRAY_NAME=$(jq  '.[].name' $PWD/keys.json | jq --slurp '.[]')
@@ -75,13 +75,10 @@ CHOICES=$(whiptail --title "$TITLE" \
 # ------------- CASES -------------
 
 # Choice : No selection
-if [ -z "$CHOICES" ]
-then
-  echo -e "${Red}>>> No option was selected ${Color_Off}"
-
-# Choice : Insertion
-elif [ "$CHOICES" = "0" ]
-then
+# Subtract 2 to adjust for the additional insert and delete options
+CHOICES=$((CHOICES-1))
+# Choice : Insertion of a new connection with key authentication
+if [ "$CHOICES" -eq 0 ]; then
   # shellcheck disable=SC2068
   JSON_NAME=$(whiptail --inputbox "New name (without space please) : " \
             $HEIGHT $WIDTH \
@@ -118,25 +115,67 @@ then
       # Source : https://myblog.robert.sebille.name/?Tester-si-une-connexion-ssh-est
       echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
       sudo ssh -q -i "$NAME" "$CLIENT"@"$HOSTNAME" echo > /dev/null
-      if [ "$?" == "255" ]
-      then
-        echo -e "${Red}>>> Connexion impossible to $NAME. The inscription is canceled ${Color_Off}"
-      elif [ "$?" == "0" ]
-      then
-        echo -e "${Red}>>> Connexion impossible or failed to $NAME. The inscription is canceled ${Color_Off}"
-      else
-        sudo ssh -i "$NAME" "$CLIENT"@"$HOSTNAME"
+      if test_connection ; then
+        sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME"
+        # This RESULT command create an array in excess, we need to delete it before insert it in the file
+        echo "$RESULT" | jq '.[0]' > "$FILE"
       fi
-      # This RESULT command create an array in excess, we need to delete it before insert it in the file
-      echo "$RESULT" | jq '.[0]' > "$FILE"
     else
       echo  -e "${Red}>>> The file doesn't exist, the insert is canceled${Color_Off}"
     fi
   else
-    echo  -e "${Red}>>> Atleast one dialog wasn't completed, the operation is canceled${Color_Off}"
+    echo  -e "${Red}>>> At least one dialog wasn't completed, the operation is canceled${Color_Off}"
   fi
 
+##############################################################################
+# Choice : Insertion of a new connection with password authentication
+##############################################################################
+##############################################################################
+
+elif [ "$CHOICES" -eq 1 ]; then
+  # shellcheck disable=SC2068
+  JSON_NAME=$(whiptail --inputbox "New name (without space please) : " \
+            $HEIGHT $WIDTH \
+            3>&1 1>&2 2>&3)
+
+  JSON_PORT=$(whiptail --inputbox "Port: " \
+              $HEIGHT $WIDTH \
+              3>&1 1>&2 2>&3)
+
+  JSON_CLIENT=$(whiptail --inputbox "Client's name : " \
+                $HEIGHT $WIDTH \
+                3>&1 1>&2 2>&3)
+
+  JSON_HOSTNAME=$(whiptail --inputbox "Hostname : " \
+                  $HEIGHT $WIDTH \
+                  3>&1 1>&2 2>&3)
+
+  # If all the dialog are completed, test the connexion SSH and add it to
+  if [[ ( -n $JSON_NAME ) && ( -n $JSON_PORT ) && ( -n $JSON_CLIENT ) && ( -n $JSON_HOSTNAME )]]
+  then
+    # Add these new information to the file
+    RESULT=$(jq -s --arg name "$JSON_NAME" \
+            --arg hostname "$JSON_HOSTNAME" \
+            --arg client "$JSON_CLIENT" \
+            --arg port "$JSON_PORT" \
+            '.[] |= . + [{ "name" : $name, "key" : null, "hostname" : hostname, "client": $client, "port": $port }]' "$FILE")
+    # Test if the connection works
+    # Source : https://myblog.robert.sebille.name/?Tester-si-une-connexion-ssh-est
+    echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
+    sudo ssh -q -i "$NAME" "$CLIENT"@"$HOSTNAME" echo > /dev/null
+    if test_connection ; then
+      sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME"
+      # This RESULT command create an array in excess, we need to delete it before insert it in the file
+      echo "$RESULT" | jq '.[0]' > "$FILE"
+    fi
+  else
+    echo  -e "${Red}>>> At least one dialog wasn't completed, the operation is canceled${Color_Off}"
+  fi
+
+##############################################################################
 # Choice : other choices in list
+##############################################################################
+##############################################################################
 else
   # Increment to remove the first and second options of the variable and read the JSON file correctly
   CHOICES=$((CHOICES-1))

@@ -1,17 +1,3 @@
 [
-  {
-    "name": "RATP_Server_test",
-    "key": "Thingsboard_recover.pem",
-    "hostname": "13.38.118.46",
-    "client": "ubuntu",
-    "port": null
-  },
-  {
-    "name": "BackupPack",
-    "key": null,
-    "hostname": "89.87.66.147",
-    "port" : 22,
-    "client": "pi"
-  }
-  
+
 ]
