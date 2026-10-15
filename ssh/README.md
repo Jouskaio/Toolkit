@@ -1,55 +1,59 @@
 # Toolkit - Quick connexion to ssh servers
 
+A small menu to keep your SSH connections in one place and open them with one choice.
+
 ## Execution
 
-To execute the file, please run the following command `./ssh_keyloading.sh` and make sure to be on bash / zsh console.
-Some trouble can be experienced if the script is used on Windows software. If so, please check the path where ssh key are stocked and make sure you have a recent version of bash.
+Run it with bash (not `sh`), from any folder:
 
-When running, please select the server you want then enter your sudo password.
-To leave the console, do Ctl+D or write logout.
-
-If you need to modify some information, please edit the keys.json file.
-
-### Troubles
-
-* If the code can't insert data on the JSON file, you need to make file writable for the script with this command `sudo chmod a+x keys.json`
-* Sometimes the program could end like this :
-  ``` bash
-   client_loop: send disconnect: Broken pipe
-    ./ssh_keyloading.sh: line 158: unexpected EOF while looking for matching `"'
-    ./ssh_keyloading.sh: line 161: syntax error: unexpected end of file
-  ```
-  Don't worry, this appears when you are connected to the server for too long or if your Wi-Fi / Ethernet connexion lagged. The loop is therefore broken which make these errors.
-
-## Add a new connection
-
-### Version 1.0 : Add manually
-
-For now, we have to add manually in the ssh folder the new key then add a new element in the array JSON like this.
-
-**For private/public key authentification **
-``` json
-    {
-            "name" : "Name without space (one word)",
-            "key" : "Name of the file in ssh folder (with extension)",
-            "hostname" : "hostname",
-            "client": "Name of the client",
-            "port": null
-    }
+``` bash
+bash ssh/main.sh
 ```
 
-**For password authentification **
+It needs `jq` and `whiptail` (package `newt` with Homebrew). If one is missing, the script offers to install it.
+To leave a server, do Ctrl+D or write `logout`.
+
+## The menu
+
+* **A connection**: select it to connect.
+* **+ Add a connection**: name, user, hostname, port (optional) and private key (optional).
+  Give the **absolute path** of the key and it is copied to `~/.ssh` with the right permissions (`600`).
+  Leave the key empty for a password login.
+* **~ Edit a connection**: pick one, the form is pre-filled with its current values.
+* **- Delete a connection**: pick one and confirm.
+
+Names use letters, digits, `.`, `_` and `-` (no space) and must be unique. A port is a number between 1 and 65535.
+
+## Your connections: keys.json
+
+They live in `ssh/keys.json`, next to `main.sh`. This file lists your real servers, so it is **ignored by git**:
+the repository only ships [`keys.example.json`](keys.example.json). Copy it to start from an example,
+or just open the menu: the file is created empty on the first run.
+
+Every change keeps the previous version in `keys.json.bak`.
+
+Each connection looks like this (you can still edit the file by hand):
+
 ``` json
-    {
-            "name" : "Name without space (one word)",
-            "key" : null,
-            "hostname" : "Port",
-            "client": "Name of the client",
-            "port": "Integer port (ex: 32)"
-    }
+{
+  "name": "Name without space",
+  "key": "Name of the key file in ~/.ssh, or null for a password login",
+  "hostname": "server.example.com",
+  "client": "User on the server",
+  "port": "2222, or null for the default port"
+}
 ```
 
-### Version 1.1 : With the console
+## Tests
 
-Select the "Insert_new_connection" then follow the few steps to save this new connection then connect to your server.
-You will only need the absolute path to your private key somewhere in your file. Don't worry, you don't need to manually move it in your "~/.ssh" folder, the program will do it for you.
+``` bash
+bash ssh/tests/keys.test.sh   # add, edit, delete and validations of keys.json
+bash ssh/tests/menu.test.sh   # the whole menu, driven by a fake whiptail
+```
+
+They only use temporary files: your `keys.json` and your `~/.ssh` are never touched.
+
+## Troubleshooting
+
+* `client_loop: send disconnect: Broken pipe` happens when you stay connected for too long or when the network lags: reconnect.
+* "The key ... does not exist": the key file is missing from `~/.ssh`. Edit the connection and give the path of the key again.
