@@ -1,0 +1,19 @@
+[
+  {
+    "name": "example-key",
+    "key": "id_ed25519",
+    "hostname": "server.example.com",
+    "client": "deploy",
+    "port": null,
+    "group": "prod",
+    "jump": "example-password",
+    "forward": "8080:localhost:80"
+  },
+  {
+    "name": "example-password",
+    "key": null,
+    "hostname": "192.0.2.10",
+    "client": "admin",
+    "port": "2222"
+  }
+]

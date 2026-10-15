@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint every shell script
+        run: |
+          shellcheck --version
+          git ls-files '*.sh' toolkit completions/toolkit.bash ssh/tests/fakebin/* | xargs shellcheck
+
+  tests:
+    name: Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq and whiptail (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y jq whiptail
+      - name: Install jq and whiptail (macOS)
+        if: runner.os == 'macOS'
+        run: brew install jq newt
+      - name: Run the tests
+        run: bash tests/run-all.sh

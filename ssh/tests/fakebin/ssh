@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# Stand-in for ssh in the tests: logs its arguments, answers the status probe, refuses the host "denied*".
+echo "$*" >> "${FAKE_SSH_LOG:-/dev/null}"
+case "$*" in
+  *denied*) exit 255 ;;
+  *BatchMode=yes*) echo "load=0.42 disk=37% mem=51% pm2=2/3 docker=4" ;;
+esac
+exit 0

@@ -1,211 +1,185 @@
 #!/bin/bash
 
-# ATTENTION :
-# - Execute the file with `bash ssh_keyloading.sh` and not `sh ./ssh_keyloading.sh`
-#   for compatibility reason
-# - No space in JSON elements, whitespace aren't ignored in the condition in whiptail command
+# ATTENTION: run it with `bash main.sh`, not `sh main.sh` (arrays and [[ ]] need bash).
+# Connections are stored in keys.json (see keys.example.json); that file is never committed.
 
-# ------------- INSTALL PACKAGE NEEDED -------------
-FILE="$PWD"/keys.json
-ROOT_PROJECT=$PWD
+ROOT_PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KEYS_FILE="${KEYS_FILE:-$ROOT_PROJECT/keys.json}"
 
-source "$PWD/lib/colors.sh"
-source "$PWD/lib/tests.sh"
+source "$ROOT_PROJECT/lib/colors.sh"
+source "$ROOT_PROJECT/lib/keys.sh"
+source "$ROOT_PROJECT/lib/connect.sh"
+source "$ROOT_PROJECT/lib/keygen.sh"
+source "$ROOT_PROJECT/lib/sshconfig.sh"
 
+# ------------- DEPENDENCIES -------------
+# check_dependency <command> <apt package> [brew package]
+check_dependency() {
+  command -v "$1" > /dev/null && return 0
+  read -rp $'\033[1;33m'"$1 is missing. Install it? Y/n "$'\033[0m: ' ANSWER
+  if [[ -z "$ANSWER" || "$ANSWER" == "Y" || "$ANSWER" == "y" ]]; then
+    if command -v apt > /dev/null; then
+      sudo apt update && sudo apt install -y "$2"
+    elif command -v brew > /dev/null; then
+      brew install "${3:-$2}"
+    else
+      echo -e "${Red}>>> Install $1 manually.${Color_Off}"
+    fi
+  fi
+  command -v "$1" > /dev/null
+}
+
+check_dependency jq jq || exit 1
+check_dependency whiptail whiptail newt || exit 1
+keys_init
+
+# ------------- DIALOGS -------------
+# whiptail prints its answer on stderr: 3>&1 1>&2 2>&3 swaps it with stdout so we can capture it.
+ask() { # title, question, default value
+  whiptail --title "$1" --inputbox "$2" 11 72 "$3" 3>&1 1>&2 2>&3
+}
+
+msg() {
+  whiptail --msgbox "$1" 12 72
+}
+
+connection_label() { # index
+  local group
+  group=$(keys_field "$1" group)
+  echo "${group:+[$group] }$(keys_field "$1" name)  ($(keys_field "$1" client)@$(keys_field "$1" hostname))"
+}
+
+# Menu entries are passed as separate arguments, so names may contain any character.
+main_menu() {
+  local args=() i
+  for i in $(keys_order); do
+    args+=("$i" "$(connection_label "$i")")
+  done
+  args+=("add" "+ Add a connection" "edit" "~ Edit a connection" "delete" "- Delete a connection" "advanced" "= Group, jump host and forwarding" "keygen" "* Generate a key" "import" "< Import from ~/.ssh/config" "export" "> Export to a config file" "quit" "Quit")
+  whiptail --title "SSH connexion" --backtitle "Menu" --nocancel \
+    --menu "Select the connection you want to use." 0 0 10 "${args[@]}" 3>&1 1>&2 2>&3
+}
+
+pick_connection() { # title
+  local args=() i
+  if [ "$(keys_count)" -eq 0 ]; then
+    msg "There is no connection yet."
+    return 1
+  fi
+  for i in $(keys_order); do
+    args+=("$i" "$(connection_label "$i")")
+  done
+  whiptail --title "$1" --menu "Select a connection." 0 0 10 "${args[@]}" 3>&1 1>&2 2>&3
+}
+
+# ------------- ACTIONS -------------
+# connection_form [index]: add a connection, or edit the one at this index
+connection_form() {
+  local index="$1" title="Add a connection" name="" client="" hostname="" port="" key="" error
+  if [ -n "$index" ]; then
+    title="Edit a connection"
+    name=$(keys_field "$index" name)
+    client=$(keys_field "$index" client)
+    hostname=$(keys_field "$index" hostname)
+    port=$(keys_field "$index" port)
+    key=$(keys_field "$index" key)
+  fi
+
+  name=$(ask "$title" "Name (letters, digits, '.', '_' or '-'; no space):" "$name") || return 1
+  client=$(ask "$title" "User on the server:" "$client") || return 1
+  hostname=$(ask "$title" "Hostname or IP:" "$hostname") || return 1
+  port=$(ask "$title" "Port (empty for the default one):" "$port") || return 1
+  key=$(ask "$title" "Private key: absolute path (copied to ~/.ssh) or a file already in ~/.ssh. Empty for a password login." "$key") || return 1
+
+  if [[ "$key" == */* ]]; then
+    if ! key=$(install_key "$key" 2>&1); then
+      msg "$key"
+      return 1
+    fi
+  fi
+
+  if [ -n "$index" ]; then
+    error=$(keys_update "$index" "$name" "$key" "$hostname" "$client" "$port" 2>&1) || { msg "$error"; return 1; }
+  else
+    error=$(keys_add "$name" "$key" "$hostname" "$client" "$port" 2>&1) || { msg "$error"; return 1; }
+  fi
+}
+
+delete_connection() {
+  local index
+  index=$(pick_connection "Delete a connection") || return 1
+  if whiptail --title "Delete a connection" --yesno "Delete '$(keys_field "$index" name)'? The previous list stays in keys.json.bak." 9 72; then
+    keys_delete "$index"
+  fi
+}
+
+# generate_key: a new ed25519 key, then (optionally) given to a connection and installed on its server
+generate_key() {
+  local name index errors
+  name=$(ask "Generate a key" "File name of the new key in ~/.ssh (letters, digits, '.', '_' or '-'):" "id_ed25519_$(date +%Y)") || return 1
+  clear
+  errors=$(mktemp)
+  # ssh-keygen asks its passphrase on the terminal; only its errors are kept for the message box
+  if ! keygen_generate "$name" 2> "$errors"; then
+    msg "$(cat "$errors")"
+    rm -f "$errors"
+    return 1
+  fi
+  rm -f "$errors"
+  index=$(pick_connection "Use the key $name for a connection (Esc to skip)") || return 0
+  keys_set_key "$index" "$name"
+  if whiptail --title "Install the key" --yesno "Install $name.pub on '$(keys_field "$index" name)' now? The server asks its password once." 9 72; then
+    clear
+    keygen_install "$index" || msg "The installation failed: the key is kept, you can install it by hand with ssh-copy-id."
+  fi
+}
+
+# advanced_options: group (a label), jump host (a connection name or user@host) and port forwards of a connection
+advanced_options() {
+  local index group jump forward error
+  index=$(pick_connection "Advanced options") || return 1
+  group=$(ask "Advanced options" "Group (a label such as 'prod' or 'home', empty for none):" "$(keys_field "$index" group)") || return 1
+  jump=$(ask "Advanced options" "Jump host: the name of another connection or user@host[:port] (empty for none):" "$(keys_field "$index" jump)") || return 1
+  forward=$(ask "Advanced options" "Port forwards localPort:host:remotePort, separated by commas (empty for none):" "$(keys_field "$index" forward)") || return 1
+  error=$(keys_set_option "$index" group "$group" 2>&1 && keys_set_option "$index" jump "$jump" 2>&1 && keys_set_option "$index" forward "$forward" 2>&1) || { msg "$error"; return 1; }
+}
+
+import_config() {
+  local file count
+  file=$(ask "Import" "OpenSSH config file to read (it is never modified):" "$HOME/.ssh/config") || return 1
+  if count=$(sshconfig_import "$file" 2>&1); then
+    msg "$count connection(s) added. Connections with an existing name were kept as they are."
+  else
+    msg "$count"
+  fi
+}
+
+export_config() {
+  local file
+  file=$(ask "Export" "File to write (your ~/.ssh/config is never touched):" "$HOME/toolkit-ssh-config") || return 1
+  if sshconfig_export "$file"; then
+    msg "Written to $file. Copy the blocks you want into ~/.ssh/config."
+  else
+    msg "Could not write $file."
+  fi
+}
+
+# ------------- MAIN LOOP -------------
 clear
-read -p $'\033[1;33m Do you want to install the last version of Bash ? Y/n \033[0m: ' COMMAND_BASH
-if [[ "$COMMAND_BASH" == "Y" || "$COMMAND_BASH" == "y" ]]; then
-  printf "${White}"
-  sudo apt update
-  sudo apt-get install --only-upgrade bash
-  printf "${Color_Off}"
-  else
-    echo -e "${Yellow}Quit bash update...${Color_Off}"
-fi
-
-read -p $'\033[1;33mDo you want to install jq ? Y/n \033[0m: ' COMMAND_JQ
-if [[ "$COMMAND_JQ" = "Y" || "$COMMAND_JQ" = "y" ]]; then
-  printf  "${White}"
-  sudo apt update
-  sudo apt install jq
-  printf "${Color_Off}"
-  else
-    echo -e "${Yellow}Quit jq installation...${Color_Off}"
-fi
-
-
-# ------------- DIMENSION DIALOG -------------
-HEIGHT=0
-WIDTH=0
-CHOICE_HEIGHT=4
-# Add 2 two considerate the insert and delete option
-COUNT_OPTION=$(jq '. | length' "$PWD"/keys.json)
-#backtitle="SSH Connexion"
-TITLE="SSH connexion"
-MENU="Select the ssh connexion you want to use. If you want to add a new connexion, remember to add the ssh key in ssh folder (~/.ssh for Linux)"
-
-# ------------- ADDING OPTIONS DIALOG -------------
-DESCRIPTION=""
-COUNTER=2
-# To resolve whitespace who dictates to foreach that any word is a new element, we use this command
-# Source : https://unix.stackexchange.com/questions/459419/why-are-spaces-echoing-as-newlines
-# Update : This method doesn't work on whiptail because the description part use whitespace to
-# separate elements between value and label
-while IFS= read -r line; do
-  DESCRIPTION+=("$COUNTER $line")
-  COUNTER=$((COUNTER+1))
-done < <(jq -cr '.[].name ' < "keys.json")
-# Add the insert and delete options
-DESCRIPTION="0 INSERT_key_connection 1 INSERT_password_connection${DESCRIPTION}"
-
-# ------------- INITIALIZATION DIALOG -------------
-ARRAY_NAME=$(jq  '.[].name' $PWD/keys.json | jq --slurp '.[]')
-# shellcheck disable=SC2068
-CHOICES=$(whiptail --title "$TITLE" \
-          --backtitle "Menu" --menu \
-          --nocancel "$MENU" $HEIGHT $WIDTH $CHOICE_HEIGHT \
-          `for i in ${!DESCRIPTION[@]}; do echo "${DESCRIPTION[$i]}"; done` \
-          3>&1 1>&2 2>&3)
-#Other solution ? : https://unix.stackexchange.com/questions/479552/dynamic-options-on-whiptail-got-not-printed
-
-# Description 3>&1 1>&2 2>&3 :
-# Create a file descriptor 3 that points to 1 (stdout)
-# Redirect 1 (stdout) to 2 (stderr)
-# Redirect 2 (stderr) to the 3 file descriptor, which is pointed to stdout
-# ------------- CASES -------------
-
-# Choice : No selection
-# Subtract 2 to adjust for the additional insert and delete options
-#CHOICES=$((CHOICES-1))
-# Choice : Insertion of a new connection with key authentication
-if [ "$CHOICES" -eq 0 ]; then
-  # shellcheck disable=SC2068
-  JSON_NAME=$(whiptail --inputbox "New name (without space please) : " \
-            $HEIGHT $WIDTH \
-            3>&1 1>&2 2>&3)
-
-  JSON_KEY=$(whiptail --inputbox "Enter the absolute path where is located the key. The programme will copy it to the right emplacement : " \
-              $HEIGHT $WIDTH \
-              3>&1 1>&2 2>&3)
-
-  JSON_CLIENT=$(whiptail --inputbox "Client's name : " \
-                $HEIGHT $WIDTH \
-                3>&1 1>&2 2>&3)
-
-  JSON_HOSTNAME=$(whiptail --inputbox "Hostname : " \
-                  $HEIGHT $WIDTH \
-                  3>&1 1>&2 2>&3)
-
-  # If all the dialog are completed, test the connexion SSH and add it to
-  if [[ ( -n $JSON_NAME ) && ( -n $JSON_KEY ) && ( -n $JSON_CLIENT ) && ( -n $JSON_HOSTNAME )]]
-  then
-    # If the file exists, then copy the file in .ssh folder
-    if [ -f "$JSON_KEY" ]
-    then
-      sudo cp "$JSON_KEY" "$HOME/.ssh/"
-      # Get the name of the file
-      NAME_KEY=$(basename "$JSON_KEY")
-      # Add these new information to the file
-      RESULT=$(jq -s --arg name "$JSON_NAME" \
-              --arg key "$NAME_KEY" \
-              --arg hostname "$JSON_HOSTNAME" \
-              --arg client "$JSON_CLIENT" \
-              '.[] |= . + [{ "name" : $name, "key" : $key, "hostname" : hostname, "client": $client }]' "$FILE")
-      # Test if the connection works
-      # Source : https://myblog.robert.sebille.name/?Tester-si-une-connexion-ssh-est
-      echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
-      sudo ssh -q -i "$NAME" "$CLIENT"@"$HOSTNAME" echo > /dev/null
-      if test_connection ; then
-        sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME"
-        # This RESULT command create an array in excess, we need to delete it before insert it in the file
-        echo "$RESULT" | jq '.[0]' > "$FILE"
-      fi
-    else
-      echo  -e "${Red}>>> The file doesn't exist, the insert is canceled${Color_Off}"
-    fi
-  else
-    echo  -e "${Red}>>> At least one dialog wasn't completed, the operation is canceled${Color_Off}"
-  fi
-
-##############################################################################
-# Choice : Insertion of a new connection with password authentication
-##############################################################################
-##############################################################################
-
-elif [ "$CHOICES" -eq 1 ]; then
-  # shellcheck disable=SC2068
-  JSON_NAME=$(whiptail --inputbox "New name (without space please) : " \
-            $HEIGHT $WIDTH \
-            3>&1 1>&2 2>&3)
-
-  JSON_PORT=$(whiptail --inputbox "Port: " \
-              $HEIGHT $WIDTH \
-              3>&1 1>&2 2>&3)
-
-  JSON_CLIENT=$(whiptail --inputbox "Client's name : " \
-                $HEIGHT $WIDTH \
-                3>&1 1>&2 2>&3)
-
-  JSON_HOSTNAME=$(whiptail --inputbox "Hostname : " \
-                  $HEIGHT $WIDTH \
-                  3>&1 1>&2 2>&3)
-
-  # If all the dialog are completed, test the connexion SSH and add it to
-  if [[ ( -n $JSON_NAME ) && ( -n $JSON_PORT ) && ( -n $JSON_CLIENT ) && ( -n $JSON_HOSTNAME )]]
-  then
-    # Add these new information to the file
-    RESULT=$(jq -s --arg name "$JSON_NAME" \
-            --arg hostname "$JSON_HOSTNAME" \
-            --arg client "$JSON_CLIENT" \
-            --arg port "$JSON_PORT" \
-            '.[] |= . + [{ "name" : $name, "key" : null, "hostname" : hostname, "client": $client, "port": $port }]' "$FILE")
-    # Test if the connection works
-    # Source : https://myblog.robert.sebille.name/?Tester-si-une-connexion-ssh-est
-    echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
-    sudo ssh -q -i "$NAME" "$CLIENT"@"$HOSTNAME" echo > /dev/null
-    if test_connection ; then
-      sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME"
-      # This RESULT command create an array in excess, we need to delete it before insert it in the file
-      echo "$RESULT" | jq '.[0]' > "$FILE"
-    fi
-  else
-    echo  -e "${Red}>>> At least one dialog wasn't completed, the operation is canceled${Color_Off}"
-  fi
-
-##############################################################################
-# Choice : other choices in list
-##############################################################################
-##############################################################################
-else
-  # Increment to remove the first and second options of the variable and read the JSON file correctly
-  CHOICES=$((CHOICES-2))
-
-  NAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].name' "$FILE")
-  HOSTNAME=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].hostname' "$FILE")
-  KEY=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].key' "$FILE")
-  CLIENT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].client' "$FILE")
-  PORT=$(jq -cr --argjson CHOICES "$CHOICES" '.[$CHOICES].port' "$FILE")
-
-    # In function of data given, adapt the test  SSH connection
-    # Test connexion then connect
-    echo -e "${BYellow}Please enter your password to test then connect to your server. If it's not working, the process will be canceled...${Color_Off} \n"
-    if [ "$PORT" == "null" ] && [ -n "$KEY" ]; then
-      # SSH connection without port
-      cd "$HOME"/.ssh || exit
-      sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME" echo > /dev/null
-      if test_connection ; then
-        sudo ssh -q -i "$KEY" "$CLIENT"@"$HOSTNAME"
-      fi
-    elif [ -n "$PORT" ] && [ "$KEY" == "null"  ]; then
-      # SSH connection with port
-      # $((PORT + 0)) is used to convert string in int
-      sudo ssh "$CLIENT"@"$HOSTNAME" -p $((PORT + 0)) echo > /dev/null
-      if test_connection ; then
-        sudo ssh "$CLIENT"@"$HOSTNAME" -p $((PORT + 0))
-      fi
-    else
-      echo -e "${Red}>>> Invalid configuration for $NAME. The connection is canceled.${Color_Off}"
-    fi
-  cd "$ROOT_PROJECT" || exit
-fi
-
+while true; do
+  CHOICE=$(main_menu)
+  case "$CHOICE" in
+    add) connection_form "" ;;
+    edit) INDEX=$(pick_connection "Edit a connection") && connection_form "$INDEX" ;;
+    delete) delete_connection ;;
+    keygen) generate_key ;;
+    advanced) advanced_options ;;
+    import) import_config ;;
+    export) export_config ;;
+    quit) break ;;
+    *)
+      connect "$CHOICE"
+      break
+      ;;
+  esac
+done

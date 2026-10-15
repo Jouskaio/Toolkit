@@ -1,0 +1,69 @@
+#!/bin/bash
+
+# One entry point for the whole Toolkit: `toolkit help`. Install it with `bash install.sh`.
+
+# Where the toolkit lives, even when this file is reached through a symlink (readlink -f does not exist everywhere)
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" == /* ]] || SOURCE="$DIR/$SOURCE"
+done
+TOOLKIT_ROOT="$(cd "$(dirname "$SOURCE")" && pwd)"
+
+usage() {
+  cat << 'TEXT'
+Toolkit: scripts to look after servers.
+
+  toolkit ssh                      the SSH connection menu
+  toolkit status                   health of all your servers in one table
+  toolkit ftp <command>            SFTP users (create, list, password, quota, delete)
+  toolkit backup [list] [conf]     snapshots of folders with rsync and rotation
+  toolkit certs [list]             expiry of the TLS certificates of your domains
+  toolkit docs [name]              the cheatsheets (docker, git_flow, linux, nginx, tmux)
+  toolkit test                     run all the tests
+  toolkit version                  the version of the toolkit
+TEXT
+}
+
+# docs_file <name>: the cheatsheet whose name matches
+docs_file() {
+  local file
+  for file in "$TOOLKIT_ROOT"/_Documentation/cheatsheet_*.md; do
+    [ "$(basename "$file" .md)" == "cheatsheet_$1" ] && { echo "$file"; return 0; }
+  done
+  return 1
+}
+
+docs() {
+  local file name
+  if [ -z "$1" ]; then
+    for file in "$TOOLKIT_ROOT"/_Documentation/cheatsheet_*.md; do
+      name="$(basename "$file" .md)"
+      echo "${name#cheatsheet_}"
+    done
+    return 0
+  fi
+  file=$(docs_file "$1") || { echo "No cheatsheet called '$1'. Try: toolkit docs" >&2; return 1; }
+  if [ -t 1 ] && command -v less > /dev/null; then less "$file"; else cat "$file"; fi
+}
+
+command="$1"
+[ "$#" -gt 0 ] && shift
+
+case "$command" in
+  ssh) exec bash "$TOOLKIT_ROOT/ssh/main.sh" "$@" ;;
+  status) exec bash "$TOOLKIT_ROOT/ssh/status.sh" "$@" ;;
+  ftp) exec bash "$TOOLKIT_ROOT/ftp/ftp.sh" "$@" ;;
+  backup) exec bash "$TOOLKIT_ROOT/backup/backup.sh" "$@" ;;
+  certs) exec bash "$TOOLKIT_ROOT/certs/certs.sh" "$@" ;;
+  docs) docs "$@" ;;
+  test) exec bash "$TOOLKIT_ROOT/tests/run-all.sh" "$@" ;;
+  version | --version | -v) echo "toolkit $(cat "$TOOLKIT_ROOT/VERSION")" ;;
+  help | -h | --help | "") usage ;;
+  *)
+    echo "Unknown command '$command'." >&2
+    usage >&2
+    exit 1
+    ;;
+esac

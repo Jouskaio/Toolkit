@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Stand-in for whiptail in tests/menu.test.sh. Each dialog takes its answer from the first line of
+# $FAKE_ANSWERS (a blank line is an empty answer). Message boxes take no answer: they are logged.
+
+case " $* " in
+  *" --msgbox "*)
+    echo "$2" >> "$FAKE_ANSWERS.messages"
+    exit 0
+    ;;
+esac
+
+answer=$(head -n 1 "$FAKE_ANSWERS")
+tail -n +2 "$FAKE_ANSWERS" > "$FAKE_ANSWERS.next" && mv "$FAKE_ANSWERS.next" "$FAKE_ANSWERS"
+
+case " $* " in
+  *" --yesno "*) [ "$answer" == "yes" ] ;;
+  *) echo "$answer" >&2 ;; # the real whiptail answers on stderr
+esac

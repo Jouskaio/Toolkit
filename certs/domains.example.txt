@@ -1,0 +1,6 @@
+# One host per line, with an optional port (default 443). Copy this file to domains.txt (ignored by git).
+jouskaio.me
+api.jouskaio.me
+babel.jouskaio.me
+styleguide.jouskaio.me
+mail.example.com:993
