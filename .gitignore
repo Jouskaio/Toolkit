@@ -4,3 +4,4 @@ keys/
 ssh/keys.json
 ssh/keys.json.bak
 ssh/keys.json.tmp
+backup/backup.conf
