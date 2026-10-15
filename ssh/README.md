@@ -44,11 +44,22 @@ Each connection looks like this (you can still edit the file by hand):
 }
 ```
 
+## Health of all your servers
+
+``` bash
+bash ssh/status.sh
+```
+
+One table for every connection of `keys.json`, all checked at the same time: is the SSH port open, then (for a connection with a key)
+the load, the disk and memory usage, the pm2 processes (online / all) and the number of running Docker containers.
+A connection with a password only shows `up-nokey` (asking for the password would block the report), and `denied` means that the key was refused.
+
 ## Tests
 
 ``` bash
 bash ssh/tests/keys.test.sh   # add, edit, delete and validations of keys.json
 bash ssh/tests/menu.test.sh   # the whole menu, driven by a fake whiptail
+bash ssh/tests/status.test.sh # the health report, with a fake ssh and a fake nc
 ```
 
 They only use temporary files: your `keys.json` and your `~/.ssh` are never touched.

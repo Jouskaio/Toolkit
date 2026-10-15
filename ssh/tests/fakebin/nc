@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Stand-in for nc -z -w <seconds> <host> <port> in the tests: hosts starting with "down" are closed.
+host="${*: -2:1}"
+case "$host" in
+  down*) exit 1 ;;
+  *) exit 0 ;;
+esac
