@@ -86,3 +86,8 @@ keys_update() {
 keys_delete() {
   _keys_write 'del(.[$i])' --argjson i "$1"
 }
+
+# keys_set_key <index> <key>: change the key of a connection (empty for a password login)
+keys_set_key() {
+  _keys_write '.[$i].key = (if $k == "" then null else $k end)' --argjson i "$1" --arg k "$2"
+}

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Stand-in for ssh-copy-id in the tests: logs its arguments.
+echo "$*" >> "${FAKE_SSH_LOG:-/dev/null}"
+exit 0

@@ -9,12 +9,13 @@ KEYS_FILE="${KEYS_FILE:-$ROOT_PROJECT/keys.json}"
 source "$ROOT_PROJECT/lib/colors.sh"
 source "$ROOT_PROJECT/lib/keys.sh"
 source "$ROOT_PROJECT/lib/connect.sh"
+source "$ROOT_PROJECT/lib/keygen.sh"
 
 # ------------- DEPENDENCIES -------------
 # check_dependency <command> <apt package> [brew package]
 check_dependency() {
   command -v "$1" > /dev/null && return 0
-  read -p $'\033[1;33m'"$1 is missing. Install it? Y/n "$'\033[0m: ' ANSWER
+  read -rp $'\033[1;33m'"$1 is missing. Install it? Y/n "$'\033[0m: ' ANSWER
   if [[ -z "$ANSWER" || "$ANSWER" == "Y" || "$ANSWER" == "y" ]]; then
     if command -v apt > /dev/null; then
       sudo apt update && sudo apt install -y "$2"
@@ -53,7 +54,7 @@ main_menu() {
     args+=("$i" "$(connection_label "$i")")
     i=$((i + 1))
   done
-  args+=("add" "+ Add a connection" "edit" "~ Edit a connection" "delete" "- Delete a connection" "quit" "Quit")
+  args+=("add" "+ Add a connection" "edit" "~ Edit a connection" "delete" "- Delete a connection" "keygen" "* Generate a key" "quit" "Quit")
   whiptail --title "SSH connexion" --backtitle "Menu" --nocancel \
     --menu "Select the connection you want to use." 0 0 10 "${args[@]}" 3>&1 1>&2 2>&3
 }
@@ -113,6 +114,27 @@ delete_connection() {
   fi
 }
 
+# generate_key: a new ed25519 key, then (optionally) given to a connection and installed on its server
+generate_key() {
+  local name index errors
+  name=$(ask "Generate a key" "File name of the new key in ~/.ssh (letters, digits, '.', '_' or '-'):" "id_ed25519_$(date +%Y)") || return 1
+  clear
+  errors=$(mktemp)
+  # ssh-keygen asks its passphrase on the terminal; only its errors are kept for the message box
+  if ! keygen_generate "$name" 2> "$errors"; then
+    msg "$(cat "$errors")"
+    rm -f "$errors"
+    return 1
+  fi
+  rm -f "$errors"
+  index=$(pick_connection "Use the key $name for a connection (Esc to skip)") || return 0
+  keys_set_key "$index" "$name"
+  if whiptail --title "Install the key" --yesno "Install $name.pub on '$(keys_field "$index" name)' now? The server asks its password once." 9 72; then
+    clear
+    keygen_install "$index" || msg "The installation failed: the key is kept, you can install it by hand with ssh-copy-id."
+  fi
+}
+
 # ------------- MAIN LOOP -------------
 clear
 while true; do
@@ -121,6 +143,7 @@ while true; do
     add) connection_form "" ;;
     edit) INDEX=$(pick_connection "Edit a connection") && connection_form "$INDEX" ;;
     delete) delete_connection ;;
+    keygen) generate_key ;;
     quit) break ;;
     *)
       connect "$CHOICE"

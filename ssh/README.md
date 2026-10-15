@@ -22,6 +22,9 @@ To leave a server, do Ctrl+D or write `logout`.
 * **~ Edit a connection**: pick one, the form is pre-filled with its current values.
 * **- Delete a connection**: pick one and confirm.
 
+* **\* Generate a key**: creates an ed25519 key in `~/.ssh` (name of your choice, passphrase asked by `ssh-keygen`; an existing key is never overwritten),
+  gives it to a connection and offers to install its public half on the server with `ssh-copy-id` (the server asks its password once).
+
 Names use letters, digits, `.`, `_` and `-` (no space) and must be unique. A port is a number between 1 and 65535.
 
 ## Your connections: keys.json
@@ -60,6 +63,7 @@ A connection with a password only shows `up-nokey` (asking for the password woul
 bash ssh/tests/keys.test.sh   # add, edit, delete and validations of keys.json
 bash ssh/tests/menu.test.sh   # the whole menu, driven by a fake whiptail
 bash ssh/tests/status.test.sh # the health report, with a fake ssh and a fake nc
+bash ssh/tests/keygen.test.sh # key generation and installation, in a temporary HOME
 ```
 
 They only use temporary files: your `keys.json` and your `~/.ssh` are never touched.

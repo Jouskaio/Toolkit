@@ -2,3 +2,9 @@ shell=bash
 external-sources=true
 source-path=SCRIPTDIR
 source-path=SCRIPTDIR/..
+# The colors are defined in lib/colors.sh and used by the scripts that source it
+disable=SC2034,SC2154
+# jq filters and remote commands contain $ on purpose
+disable=SC2016,SC2029
+# ls -l is fine to read the permissions in the tests
+disable=SC2012
