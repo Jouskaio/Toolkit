@@ -1,0 +1,29 @@
+#compdef toolkit
+# zsh completion for toolkit
+
+_toolkit() {
+  local -a commands
+  commands=(
+    'ssh:the SSH connection menu'
+    'status:health of all your servers'
+    'ftp:SFTP users'
+    'backup:snapshots with rsync'
+    'certs:expiry of the TLS certificates'
+    'docs:the cheatsheets'
+    'test:run all the tests'
+    'version:the version of the toolkit'
+    'help:show the help'
+  )
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+    return
+  fi
+  case "$words[2]" in
+    ftp) (( CURRENT == 3 )) && _values 'command' create list password quota delete help ;;
+    backup) (( CURRENT == 3 )) && _alternative 'list:action:(list)' 'files:config file:_files' ;;
+    certs) _files ;;
+    docs) (( CURRENT == 3 )) && _values 'cheatsheet' docker git_flow linux nginx tmux ;;
+  esac
+}
+
+_toolkit "$@"
