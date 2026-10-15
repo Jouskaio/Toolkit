@@ -25,6 +25,13 @@ To leave a server, do Ctrl+D or write `logout`.
 * **\* Generate a key**: creates an ed25519 key in `~/.ssh` (name of your choice, passphrase asked by `ssh-keygen`; an existing key is never overwritten),
   gives it to a connection and offers to install its public half on the server with `ssh-copy-id` (the server asks its password once).
 
+* **= Group, jump host and forwarding**: a label to see your servers by group (`[prod] web`), a jump host (the name of another connection, or `user@host[:port]`)
+  and local port forwards such as `8080:localhost:80` (several, separated by commas).
+* **< Import from ~/.ssh/config** adds the hosts of an OpenSSH config that are not in the menu yet (your config is only read).
+  **> Export to a config file** writes one `Host` block per connection to a file of your choice.
+
+The last connections you used come first in the menu.
+
 Names use letters, digits, `.`, `_` and `-` (no space) and must be unique. A port is a number between 1 and 65535.
 
 ## Your connections: keys.json
@@ -43,7 +50,10 @@ Each connection looks like this (you can still edit the file by hand):
   "key": "Name of the key file in ~/.ssh, or null for a password login",
   "hostname": "server.example.com",
   "client": "User on the server",
-  "port": "2222, or null for the default port"
+  "port": "2222, or null for the default port",
+  "group": "optional label, e.g. prod",
+  "jump": "optional: a connection name or user@host[:port]",
+  "forward": "optional: 8080:localhost:80, several separated by commas"
 }
 ```
 
@@ -64,6 +74,7 @@ bash ssh/tests/keys.test.sh   # add, edit, delete and validations of keys.json
 bash ssh/tests/menu.test.sh   # the whole menu, driven by a fake whiptail
 bash ssh/tests/status.test.sh # the health report, with a fake ssh and a fake nc
 bash ssh/tests/keygen.test.sh # key generation and installation, in a temporary HOME
+bash ssh/tests/comfort.test.sh # groups, recent order, jump host, forwards, config import and export
 ```
 
 They only use temporary files: your `keys.json` and your `~/.ssh` are never touched.

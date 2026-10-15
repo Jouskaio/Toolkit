@@ -10,6 +10,7 @@ source "$ROOT_PROJECT/lib/colors.sh"
 source "$ROOT_PROJECT/lib/keys.sh"
 source "$ROOT_PROJECT/lib/connect.sh"
 source "$ROOT_PROJECT/lib/keygen.sh"
+source "$ROOT_PROJECT/lib/sshconfig.sh"
 
 # ------------- DEPENDENCIES -------------
 # check_dependency <command> <apt package> [brew package]
@@ -43,32 +44,30 @@ msg() {
 }
 
 connection_label() { # index
-  echo "$(keys_field "$1" name)  ($(keys_field "$1" client)@$(keys_field "$1" hostname))"
+  local group
+  group=$(keys_field "$1" group)
+  echo "${group:+[$group] }$(keys_field "$1" name)  ($(keys_field "$1" client)@$(keys_field "$1" hostname))"
 }
 
 # Menu entries are passed as separate arguments, so names may contain any character.
 main_menu() {
-  local args=() i=0 count
-  count=$(keys_count)
-  while [ "$i" -lt "$count" ]; do
+  local args=() i
+  for i in $(keys_order); do
     args+=("$i" "$(connection_label "$i")")
-    i=$((i + 1))
   done
-  args+=("add" "+ Add a connection" "edit" "~ Edit a connection" "delete" "- Delete a connection" "keygen" "* Generate a key" "quit" "Quit")
+  args+=("add" "+ Add a connection" "edit" "~ Edit a connection" "delete" "- Delete a connection" "advanced" "= Group, jump host and forwarding" "keygen" "* Generate a key" "import" "< Import from ~/.ssh/config" "export" "> Export to a config file" "quit" "Quit")
   whiptail --title "SSH connexion" --backtitle "Menu" --nocancel \
     --menu "Select the connection you want to use." 0 0 10 "${args[@]}" 3>&1 1>&2 2>&3
 }
 
 pick_connection() { # title
-  local args=() i=0 count
-  count=$(keys_count)
-  if [ "$count" -eq 0 ]; then
+  local args=() i
+  if [ "$(keys_count)" -eq 0 ]; then
     msg "There is no connection yet."
     return 1
   fi
-  while [ "$i" -lt "$count" ]; do
+  for i in $(keys_order); do
     args+=("$i" "$(connection_label "$i")")
-    i=$((i + 1))
   done
   whiptail --title "$1" --menu "Select a connection." 0 0 10 "${args[@]}" 3>&1 1>&2 2>&3
 }
@@ -135,6 +134,36 @@ generate_key() {
   fi
 }
 
+# advanced_options: group (a label), jump host (a connection name or user@host) and port forwards of a connection
+advanced_options() {
+  local index group jump forward error
+  index=$(pick_connection "Advanced options") || return 1
+  group=$(ask "Advanced options" "Group (a label such as 'prod' or 'home', empty for none):" "$(keys_field "$index" group)") || return 1
+  jump=$(ask "Advanced options" "Jump host: the name of another connection or user@host[:port] (empty for none):" "$(keys_field "$index" jump)") || return 1
+  forward=$(ask "Advanced options" "Port forwards localPort:host:remotePort, separated by commas (empty for none):" "$(keys_field "$index" forward)") || return 1
+  error=$(keys_set_option "$index" group "$group" 2>&1 && keys_set_option "$index" jump "$jump" 2>&1 && keys_set_option "$index" forward "$forward" 2>&1) || { msg "$error"; return 1; }
+}
+
+import_config() {
+  local file count
+  file=$(ask "Import" "OpenSSH config file to read (it is never modified):" "$HOME/.ssh/config") || return 1
+  if count=$(sshconfig_import "$file" 2>&1); then
+    msg "$count connection(s) added. Connections with an existing name were kept as they are."
+  else
+    msg "$count"
+  fi
+}
+
+export_config() {
+  local file
+  file=$(ask "Export" "File to write (your ~/.ssh/config is never touched):" "$HOME/toolkit-ssh-config") || return 1
+  if sshconfig_export "$file"; then
+    msg "Written to $file. Copy the blocks you want into ~/.ssh/config."
+  else
+    msg "Could not write $file."
+  fi
+}
+
 # ------------- MAIN LOOP -------------
 clear
 while true; do
@@ -144,6 +173,9 @@ while true; do
     edit) INDEX=$(pick_connection "Edit a connection") && connection_form "$INDEX" ;;
     delete) delete_connection ;;
     keygen) generate_key ;;
+    advanced) advanced_options ;;
+    import) import_config ;;
+    export) export_config ;;
     quit) break ;;
     *)
       connect "$CHOICE"

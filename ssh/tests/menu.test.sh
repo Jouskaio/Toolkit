@@ -57,6 +57,11 @@ keygen
 gen_key
 0
 yes
+advanced
+0
+prod
+
+8080:localhost:80
 quit
 EOF
 
@@ -75,6 +80,7 @@ equals "the key is private" "$(ls -l "$HOME/.ssh/id_test" | cut -c1-10)" "-rw---
 equals "the generated key is given to the connection" "$(jq -r '.[0].key' "$KEYS_FILE")" "gen_key"
 equals "the generated key exists" "$(cut -d' ' -f1 "$HOME/.ssh/gen_key.pub")" "ssh-ed25519"
 equals "the generated key was installed" "$(cat "$FAKE_SSH_LOG")" "-i $HOME/.ssh/gen_key.pub user@b.example.com"
+equals "the advanced options are stored" "$(jq -r '.[0] | "\(.group) \(.forward)"' "$KEYS_FILE")" "prod 8080:localhost:80"
 equals "the duplicate name was refused with a message" "$(grep -c "already used" "$FAKE_ANSWERS.messages")" "1"
 equals "all answers were consumed" "$(grep -c . "$FAKE_ANSWERS")" "0"
 

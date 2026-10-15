@@ -91,3 +91,32 @@ keys_delete() {
 keys_set_key() {
   _keys_write '.[$i].key = (if $k == "" then null else $k end)' --argjson i "$1" --arg k "$2"
 }
+
+# Optional fields of a connection: group (a label), jump (a connection name or user@host), forward (local port forwards,
+# separated by commas: 8080:localhost:80), last_used (epoch, set by keys_touch).
+
+# keys_set_option <index> <group|jump|forward> <value>: empty removes the option
+keys_set_option() {
+  case "$2" in
+    group) [[ -z "$3" || "$3" =~ ^[A-Za-z0-9._\ -]{1,30}$ ]] || { echo "Invalid group: up to 30 letters, digits, spaces, '.', '_' or '-'." >&2; return 1; } ;;
+    jump) [[ -z "$3" || "$3" =~ ^[A-Za-z0-9._@:-]+$ ]] || { echo "Invalid jump host: a connection name or user@host[:port]." >&2; return 1; } ;;
+    forward) [[ -z "$3" || "$3" =~ ^[0-9]{1,5}:[A-Za-z0-9._-]+:[0-9]{1,5}(,[0-9]{1,5}:[A-Za-z0-9._-]+:[0-9]{1,5})*$ ]] || { echo "Invalid forward: use localPort:host:remotePort, separated by commas." >&2; return 1; } ;;
+    *) echo "Unknown option $2." >&2; return 1 ;;
+  esac
+  _keys_write '.[$i][$f] = (if $v == "" then null else $v end)' --argjson i "$1" --arg f "$2" --arg v "$3"
+}
+
+# keys_touch <index>: remember that the connection was just used
+keys_touch() {
+  _keys_write '.[$i].last_used = (now | floor)' --argjson i "$1"
+}
+
+# keys_order: the indexes of the connections, most recently used first, then by name
+keys_order() {
+  jq -r 'to_entries | sort_by([-(.value.last_used // 0), .value.name]) | .[].key' "$(keys_file)"
+}
+
+# keys_by_name <name>: the index of the connection with this name (nothing when there is none)
+keys_by_name() {
+  jq -r --arg n "$1" 'to_entries | map(select(.value.name == $n)) | .[0].key // empty' "$(keys_file)"
+}

@@ -16,9 +16,24 @@ install_key() {
   chmod 600 "$destination" && basename "$destination"
 }
 
+# connect_target <value>: a jump host given by connection name becomes user@host[:port]
+connect_target() {
+  local i
+  i=$(keys_by_name "$1")
+  if [ -z "$i" ]; then
+    echo "$1"
+    return
+  fi
+  local target port
+  target="$(keys_field "$i" client)@$(keys_field "$i" hostname)"
+  port=$(keys_field "$i" port)
+  [ -n "$port" ] && target="$target:$port"
+  echo "$target"
+}
+
 # connect <index>
 connect() {
-  local key client hostname port
+  local key client hostname port jump forward spec
   key=$(keys_field "$1" key)
   client=$(keys_field "$1" client)
   hostname=$(keys_field "$1" hostname)
@@ -33,6 +48,15 @@ connect() {
     args+=(-i "$HOME/.ssh/$key")
   fi
   [ -n "$port" ] && args+=(-p "$port")
+  jump=$(keys_field "$1" jump)
+  [ -n "$jump" ] && args+=(-J "$(connect_target "$jump")")
+  forward=$(keys_field "$1" forward)
+  if [ -n "$forward" ]; then
+    local IFS=','
+    for spec in $forward; do args+=(-L "$spec"); done
+    unset IFS
+  fi
+  keys_touch "$1"
 
   echo -e "${BYellow}Connecting to $client@$hostname...${Color_Off}\n"
   ssh "${args[@]}" "$client@$hostname"
